@@ -3,15 +3,12 @@ var jq = (() => {
     var _a;
     var _scriptName = typeof document != 'undefined' ? (_a = document.currentScript) === null || _a === void 0 ? void 0 : _a.src : undefined;
     return (async function (moduleArg = {}) {
-        var _a;
         var moduleRtn;
         var Module = moduleArg;
         var readyPromiseResolve, readyPromiseReject;
         var readyPromise = new Promise((resolve, reject) => { readyPromiseResolve = resolve; readyPromiseReject = reject; });
-        var ENVIRONMENT_IS_WEB = typeof window == "object";
-        var ENVIRONMENT_IS_WORKER = typeof WorkerGlobalScope != "undefined";
-        var ENVIRONMENT_IS_NODE = typeof process == "object" && ((_a = process.versions) === null || _a === void 0 ? void 0 : _a.node) && process.type != "renderer";
-        if (ENVIRONMENT_IS_NODE) { }
+        var ENVIRONMENT_IS_WEB = true;
+        var ENVIRONMENT_IS_WORKER = false;
         let stdinBuffer = new Uint8Array(0);
         let stdoutBuffer = [];
         let stderrBuffer = [];
@@ -45,44 +42,18 @@ var jq = (() => {
         var arguments_ = [];
         var thisProgram = "./this.program";
         var quit_ = (status, toThrow) => { throw toThrow; };
-        if (typeof __filename != "undefined") {
-            _scriptName = __filename;
-        }
-        else if (ENVIRONMENT_IS_WORKER) {
-            _scriptName = self.location.href;
-        }
         var scriptDirectory = "";
         function locateFile(path) { if (Module["locateFile"]) {
             return Module["locateFile"](path, scriptDirectory);
         } return scriptDirectory + path; }
         var readAsync, readBinary;
-        if (ENVIRONMENT_IS_NODE) {
-            var fs = require("fs");
-            var nodePath = require("path");
-            scriptDirectory = __dirname + "/";
-            readBinary = filename => { filename = isFileURI(filename) ? new URL(filename) : filename; var ret = fs.readFileSync(filename); return ret; };
-            readAsync = async (filename, binary = true) => { filename = isFileURI(filename) ? new URL(filename) : filename; var ret = fs.readFileSync(filename, binary ? undefined : "utf8"); return ret; };
-            if (process.argv.length > 1) {
-                thisProgram = process.argv[1].replace(/\\/g, "/");
-            }
-            arguments_ = process.argv.slice(2);
-            quit_ = (status, toThrow) => { process.exitCode = status; throw toThrow; };
-        }
-        else if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
+        if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
             try {
                 scriptDirectory = new URL(".", _scriptName).href;
             }
             catch { }
             {
-                if (ENVIRONMENT_IS_WORKER) {
-                    readBinary = url => { var xhr = new XMLHttpRequest; xhr.open("GET", url, false); xhr.responseType = "arraybuffer"; xhr.send(null); return new Uint8Array(xhr.response); };
-                }
-                readAsync = async (url) => { if (isFileURI(url)) {
-                    return new Promise((resolve, reject) => { var xhr = new XMLHttpRequest; xhr.open("GET", url, true); xhr.responseType = "arraybuffer"; xhr.onload = () => { if (xhr.status == 200 || xhr.status == 0 && xhr.response) {
-                        resolve(xhr.response);
-                        return;
-                    } reject(xhr.status); }; xhr.onerror = reject; xhr.send(null); });
-                } var response = await fetch(url, { credentials: "same-origin" }); if (response.ok) {
+                readAsync = async (url) => { var response = await fetch(url, { credentials: "same-origin" }); if (response.ok) {
                     return response.arrayBuffer();
                 } throw new Error(response.status + " : " + response.url); };
             }
@@ -96,7 +67,6 @@ var jq = (() => {
         var EXITSTATUS;
         var HEAP8, HEAPU8, HEAP16, HEAPU16, HEAP32, HEAPU32, HEAPF32, HEAP64, HEAPU64, HEAPF64;
         var runtimeInitialized = false;
-        var isFileURI = filename => filename.startsWith("file://");
         function updateMemoryViews() { var b = wasmMemory.buffer; HEAP8 = new Int8Array(b); HEAP16 = new Int16Array(b); HEAPU8 = new Uint8Array(b); HEAPU16 = new Uint16Array(b); HEAP32 = new Int32Array(b); HEAPU32 = new Uint32Array(b); HEAPF32 = new Float32Array(b); HEAPF64 = new Float64Array(b); HEAP64 = new BigInt64Array(b); HEAPU64 = new BigUint64Array(b); }
         function preRun() { if (Module["preRun"]) {
             if (typeof Module["preRun"] == "function")
@@ -150,7 +120,7 @@ var jq = (() => {
             err(`failed to asynchronously prepare wasm: ${reason}`);
             abort(reason);
         } }
-        async function instantiateAsync(binary, binaryFile, imports) { if (!binary && typeof WebAssembly.instantiateStreaming == "function" && !isFileURI(binaryFile) && !ENVIRONMENT_IS_NODE) {
+        async function instantiateAsync(binary, binaryFile, imports) { if (!binary && typeof WebAssembly.instantiateStreaming == "function") {
             try {
                 var response = fetch(binaryFile, { credentials: "same-origin" });
                 var instantiationResult = await WebAssembly.instantiateStreaming(response, imports);
@@ -256,10 +226,7 @@ var jq = (() => {
             } if (dir) {
                 dir = dir.slice(0, -1);
             } return root + dir; }, basename: path => path && path.match(/([^\/]+|\/)\/*$/)[1], join: (...paths) => PATH.normalize(paths.join("/")), join2: (l, r) => PATH.normalize(l + "/" + r) };
-        var initRandomFill = () => { if (ENVIRONMENT_IS_NODE) {
-            var nodeCrypto = require("crypto");
-            return view => nodeCrypto.randomFillSync(view);
-        } return view => crypto.getRandomValues(view); };
+        var initRandomFill = () => view => crypto.getRandomValues(view);
         var randomFill = view => { (randomFill = initRandomFill())(view); };
         var PATH_FS = { resolve: (...args) => { var resolvedPath = "", resolvedAbsolute = false; for (var i = args.length - 1; i >= -1 && !resolvedAbsolute; i--) {
                 var path = i >= 0 ? args[i] : FS.cwd();
@@ -341,25 +308,7 @@ var jq = (() => {
             u8array.length = numBytesWritten; return u8array; };
         var FS_stdin_getChar = () => { if (!FS_stdin_getChar_buffer.length) {
             var result = null;
-            if (ENVIRONMENT_IS_NODE) {
-                var BUFSIZE = 256;
-                var buf = Buffer.alloc(BUFSIZE);
-                var bytesRead = 0;
-                var fd = process.stdin.fd;
-                try {
-                    bytesRead = fs.readSync(fd, buf, 0, BUFSIZE);
-                }
-                catch (e) {
-                    if (e.toString().includes("EOF"))
-                        bytesRead = 0;
-                    else
-                        throw e;
-                }
-                if (bytesRead > 0) {
-                    result = buf.slice(0, bytesRead).toString("utf-8");
-                }
-            }
-            else if (typeof window != "undefined" && typeof window.prompt == "function") {
+            if (typeof window != "undefined" && typeof window.prompt == "function") {
                 result = window.prompt("Input: ");
                 if (result !== null) {
                     result += "\n";
